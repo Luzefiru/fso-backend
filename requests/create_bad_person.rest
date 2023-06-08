@@ -1,0 +1,35 @@
+### duplicate name
+
+POST http://localhost:3001/api/persons
+Content-Type: application/json
+
+{
+    "name": "Dan Abramov",
+    "number": "1234-5678-910"
+}
+
+### undefined name
+
+POST http://localhost:3001/api/persons
+Content-Type: application/json
+
+{
+    "number": "1234-5678-910"
+}
+
+### undefined number
+
+POST http://localhost:3001/api/persons
+Content-Type: application/json
+
+{
+    "name": "Ian de Jesus"
+}
+
+### undefined name && undefined number
+
+POST http://localhost:3001/api/persons
+Content-Type: application/json
+
+{
+}

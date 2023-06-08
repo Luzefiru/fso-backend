@@ -1,85 +1,127 @@
 const express = require('express');
-const app = express();
+const morgan = require('morgan');
 const cors = require('cors');
-app.use(express.json());
-app.use(express.static('build'));
-app.use(cors());
+const app = express();
+app.use(express.json(), cors(), express.static('build'));
 
-let notes = [
+app.use(
+  morgan(
+    function (tokens, req, res) {
+      return [
+        tokens.method(req, res),
+        tokens.url(req, res),
+        tokens.status(req, res),
+        tokens.res(req, res, 'content-length'),
+        '-',
+        tokens['response-time'](req, res),
+        'ms',
+        JSON.stringify(req.body),
+      ].join(' ');
+    },
+    { skip: (req, res) => req.method !== 'POST' }
+  )
+);
+
+let db = [
   {
     id: 1,
-    content: 'HTML is easy',
-    important: true,
+    name: 'Arto Hellas',
+    number: '040-123456',
   },
   {
     id: 2,
-    content: 'Browser can execute only JavaScript',
-    important: false,
+    name: 'Ada Lovelace',
+    number: '39-44-5323523',
   },
   {
     id: 3,
-    content: 'GET and POST are the most important methods of HTTP protocol',
-    important: true,
+    name: 'Dan Abramov',
+    number: '12-43-234345',
+  },
+  {
+    id: 4,
+    name: 'Mary Poppendieck',
+    number: '39-23-6423122',
   },
 ];
 
-app.get('/', (request, response) => {
-  response.send('<h1>Hello World!</h1>');
+app.get('/info', (req, res) => {
+  const numOfPeople = db.length;
+  const response = `<p>Phonebook has info for ${numOfPeople} people</p><p>${new Date()}</p>`;
+  res.send(response);
 });
 
-app.get('/api/notes', (req, res) => {
-  res.json(notes);
+app.get('/api/persons', (req, res) => {
+  res.json(db);
 });
 
-app.get('/api/notes/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const note = notes.find((note) => note.id === id);
+app.get('/api/persons/:id', (req, res) => {
+  const idToSearch = Number(req.params.id);
+  const personWithId = db.find((person) => person.id === idToSearch);
 
-  if (note) {
-    res.json(note);
+  if (personWithId) {
+    return res.json(personWithId);
   } else {
-    res.statusMessage = 'Note does not exist';
-    res.status(404).end();
+    return res.status(404).end();
   }
 });
 
-app.delete('/api/notes/:id', (req, res) => {
+app.delete('/api/persons/:id', (req, res) => {
   const idToDelete = Number(req.params.id);
-  notes = notes.filter((note) => note.id !== idToDelete);
-  res.status(204).end();
+  const oldDbLength = db.length;
+  db = db.filter((person) => person.id !== idToDelete);
+  const newDbLength = db.length;
+  if (newDbLength < oldDbLength) {
+    return res.status(200).json({
+      status: 204,
+      success: true,
+      message: `Person with id ${idToDelete} was successfully deleted`,
+    });
+  } else {
+    return res.status(404).json({
+      status: 404,
+      success: false,
+      message: `No person was deleted`,
+    });
+  }
 });
 
-const generateId = () => {
-  const maxId = notes.length > 0 ? Math.max(...notes.map((n) => n.id)) : 0;
-  return maxId + 1;
-};
-
-app.post('/api/notes', (req, res) => {
-  // catcher for invalid request data, must have req.body.content
-  if (!req.body.content) {
+app.post('/api/persons', (req, res) => {
+  const { name, number } = req.body;
+  const nameAlreadyExists = db.find((person) => person.name === name);
+  if (!name) {
     return res.status(400).json({
-      error: 'content missing',
+      status: 400,
+      success: false,
+      message: `name field must be defined`,
+    });
+  } else if (!number) {
+    return res.status(400).json({
+      status: 400,
+      success: false,
+      message: `number field must be defined`,
+    });
+  } else if (nameAlreadyExists) {
+    return res.status(400).json({
+      status: 400,
+      success: false,
+      message: `name must be unique`,
     });
   }
 
-  const note = {
-    content: req.body.content,
-    important: req.body.important || false,
-    id: generateId(),
-  };
+  const newId = Math.floor(Math.random() * 2048);
+  const newPerson = { name, number, id: newId };
+  db.push(newPerson);
 
-  notes = notes.concat(note);
-
-  res.json(note);
+  res.status(200).json({
+    status: 201,
+    success: true,
+    message: `The person with id ${newId} was successfully added to the Phonebook.`,
+    person: newPerson,
+  });
 });
-
-const unknownEndpoint = (request, response) => {
-  response.status(404).send({ error: 'unknown endpoint' });
-};
-
-app.use(unknownEndpoint);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
