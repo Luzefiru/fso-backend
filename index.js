@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
@@ -22,42 +23,36 @@ app.use(
   )
 );
 
-let db = [
-  {
-    id: 1,
-    name: 'Arto Hellas',
-    number: '040-123456',
-  },
-  {
-    id: 2,
-    name: 'Ada Lovelace',
-    number: '39-44-5323523',
-  },
-  {
-    id: 3,
-    name: 'Dan Abramov',
-    number: '12-43-234345',
-  },
-  {
-    id: 4,
-    name: 'Mary Poppendieck',
-    number: '39-23-6423122',
-  },
-];
+const mongoose = require('mongoose');
+const Entry = require('./models/entry');
+mongoose.set('strictQuery', false);
 
-app.get('/info', (req, res) => {
-  const numOfPeople = db.length;
-  const response = `<p>Phonebook has info for ${numOfPeople} people</p><p>${new Date()}</p>`;
+async function connectToMongoDB() {
+  try {
+    await mongoose.connect(process.env.MONGODB_CONNECTION_STRING);
+    console.log('Connected to MongoDB.');
+  } catch (err) {
+    console.log('Error connecting to MongoDB:', err);
+  }
+}
+connectToMongoDB();
+
+app.get('/info', async (req, res) => {
+  const entries = await Entry.find({});
+  const response = `<p>Phonebook has info for ${
+    entries.length
+  } people</p><p>${new Date()}</p>`;
   res.send(response);
 });
 
-app.get('/api/persons', (req, res) => {
-  res.json(db);
+app.get('/api/persons', async (req, res) => {
+  const entries = await Entry.find({});
+  res.json(entries);
 });
 
-app.get('/api/persons/:id', (req, res) => {
-  const idToSearch = Number(req.params.id);
-  const personWithId = db.find((person) => person.id === idToSearch);
+app.get('/api/persons/:id', async (req, res) => {
+  const idToSearch = req.params.id;
+  const personWithId = await Entry.find({ _id: idToSearch }).exec();
 
   if (personWithId) {
     return res.json(personWithId);
@@ -66,12 +61,10 @@ app.get('/api/persons/:id', (req, res) => {
   }
 });
 
-app.delete('/api/persons/:id', (req, res) => {
-  const idToDelete = Number(req.params.id);
-  const oldDbLength = db.length;
-  db = db.filter((person) => person.id !== idToDelete);
-  const newDbLength = db.length;
-  if (newDbLength < oldDbLength) {
+app.delete('/api/persons/:id', async (req, res) => {
+  const idToDelete = req.params.id;
+  const deletedEntry = await Entry.findByIdAndDelete(idToDelete);
+  if (deletedEntry) {
     return res.status(200).json({
       status: 204,
       success: true,
@@ -86,9 +79,9 @@ app.delete('/api/persons/:id', (req, res) => {
   }
 });
 
-app.post('/api/persons', (req, res) => {
+app.post('/api/persons', async (req, res) => {
   const { name, number } = req.body;
-  const nameAlreadyExists = db.find((person) => person.name === name);
+  const nameAlreadyExists = await Entry.find({ name });
   if (!name) {
     return res.status(400).json({
       status: 400,
@@ -101,7 +94,7 @@ app.post('/api/persons', (req, res) => {
       success: false,
       message: `number field must be defined`,
     });
-  } else if (nameAlreadyExists) {
+  } else if (nameAlreadyExists.length > 0) {
     return res.status(400).json({
       status: 400,
       success: false,
@@ -109,15 +102,16 @@ app.post('/api/persons', (req, res) => {
     });
   }
 
-  const newId = Math.floor(Math.random() * 2048);
-  const newPerson = { name, number, id: newId };
-  db.push(newPerson);
+  const newEntry = new Entry({ name, number });
+  const savedEntry = await newEntry.save();
+
+  console.log(savedEntry);
 
   res.status(200).json({
     status: 201,
     success: true,
-    message: `The person with id ${newId} was successfully added to the Phonebook.`,
-    person: newPerson,
+    message: `The person with id ${savedEntry._id} was successfully added to the Phonebook.`,
+    person: savedEntry,
   });
 });
 
