@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
+const axios = require('axios');
 const app = express();
 app.use(express.json(), cors(), express.static('build'));
 const mongoose = require('mongoose');
@@ -47,19 +48,27 @@ app.get('/info', async (req, res) => {
   res.send(response);
 });
 
-app.get('/api/persons', async (req, res) => {
-  const entries = await Entry.find({});
-  res.json(entries);
+app.get('/api/persons', async (req, res, next) => {
+  try {
+    const entries = await Entry.find({});
+    return res.json(entries);
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.get('/api/persons/:id', async (req, res) => {
-  const idToSearch = req.params.id;
-  const personWithId = await Entry.find({ _id: idToSearch }).exec();
+app.get('/api/persons/:id', async (req, res, next) => {
+  try {
+    const idToSearch = req.params.id;
+    const personWithId = await Entry.find({ _id: idToSearch }).exec();
 
-  if (personWithId) {
-    return res.json(personWithId);
-  } else {
-    return res.status(404).end();
+    if (personWithId) {
+      return res.json(personWithId);
+    } else {
+      return res.status(404).end();
+    }
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -88,6 +97,8 @@ app.delete('/api/persons/:id', async (req, res, next) => {
 app.post('/api/persons', async (req, res) => {
   const { name, number } = req.body;
   const nameAlreadyExists = await Entry.find({ name });
+
+  // validates whether the HTTP request body input meets constraints
   if (!name) {
     return res.status(400).json({
       status: 400,
@@ -100,18 +111,38 @@ app.post('/api/persons', async (req, res) => {
       success: false,
       message: `number field must be defined`,
     });
-  } else if (nameAlreadyExists.length > 0) {
-    return res.status(400).json({
-      status: 400,
-      success: false,
-      message: `name must be unique`,
-    });
   }
 
+  // duplicate name handler
+  // updates the existing MongoDB document via a PATCH HTTP request to itself (same server)
+  if (nameAlreadyExists.length > 0) {
+    const response = await axios.put(
+      `http://127.0.0.1:${process.env.PORT || '3001'}/api/persons/${
+        nameAlreadyExists[0]._id
+      }`,
+      { name, number }
+    );
+    if (response.data.success === true) {
+      return res.status(200).json({
+        status: 200,
+        success: true,
+        message: response.data.message,
+        person: response.data.person,
+      });
+    } else {
+      return res.status(500).json({
+        status: 500,
+        success: false,
+        message: 'failed to update existing person due to a server error',
+      });
+    }
+  }
+
+  // otherwise, creates a new entry in the collection
   const newEntry = new Entry({ name, number });
   const savedEntry = await newEntry.save();
 
-  res.status(200).json({
+  res.status(201).json({
     status: 201,
     success: true,
     message: `The person with id ${savedEntry._id} was successfully added to the Phonebook.`,
@@ -119,10 +150,34 @@ app.post('/api/persons', async (req, res) => {
   });
 });
 
-app.use((req, res) => {
-  res.status(404).send({ error: 'Unknown endpoint.' });
+app.patch('/api/persons/:id', async (req, res, next) => {
+  const { name, number } = req.body;
+  const idToUpdate = req.params.id;
+
+  try {
+    const updatedEntry = await Entry.findByIdAndUpdate(
+      idToUpdate,
+      { name, number },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: `The person with id ${updatedEntry._id} was successfully updated.`,
+      person: updatedEntry,
+    });
+  } catch (err) {
+    return next(err);
+  }
 });
 
+// unknown route handler
+app.use((req, res) => {
+  res.status(404).send({ error: 'unknown endpoint' });
+});
+
+// error handler
 app.use((err, req, res, next) => {
   console.log(err.message);
 
