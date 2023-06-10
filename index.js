@@ -4,7 +4,11 @@ const morgan = require('morgan');
 const cors = require('cors');
 const app = express();
 app.use(express.json(), cors(), express.static('build'));
+const mongoose = require('mongoose');
+const Entry = require('./models/entry');
+mongoose.set('strictQuery', false);
 
+// morgan console logging
 app.use(
   morgan(
     function (tokens, req, res) {
@@ -23,10 +27,7 @@ app.use(
   )
 );
 
-const mongoose = require('mongoose');
-const Entry = require('./models/entry');
-mongoose.set('strictQuery', false);
-
+// MongoDB connection
 async function connectToMongoDB() {
   try {
     await mongoose.connect(process.env.MONGODB_CONNECTION_STRING);
@@ -37,6 +38,7 @@ async function connectToMongoDB() {
 }
 connectToMongoDB();
 
+// routes
 app.get('/info', async (req, res) => {
   const entries = await Entry.find({});
   const response = `<p>Phonebook has info for ${
@@ -61,21 +63,25 @@ app.get('/api/persons/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/persons/:id', async (req, res) => {
+app.delete('/api/persons/:id', async (req, res, next) => {
   const idToDelete = req.params.id;
-  const deletedEntry = await Entry.findByIdAndDelete(idToDelete);
-  if (deletedEntry) {
-    return res.status(200).json({
-      status: 204,
-      success: true,
-      message: `Person with id ${idToDelete} was successfully deleted`,
-    });
-  } else {
-    return res.status(404).json({
-      status: 404,
-      success: false,
-      message: `No person was deleted`,
-    });
+  try {
+    const deletedEntry = await Entry.findByIdAndDelete(idToDelete);
+    if (deletedEntry) {
+      return res.status(200).json({
+        status: 204,
+        success: true,
+        message: `Person with id ${idToDelete} was successfully deleted`,
+      });
+    } else {
+      return res.status(404).json({
+        status: 404,
+        success: false,
+        message: `No person was deleted`,
+      });
+    }
+  } catch (err) {
+    return next(err);
   }
 });
 
@@ -105,8 +111,6 @@ app.post('/api/persons', async (req, res) => {
   const newEntry = new Entry({ name, number });
   const savedEntry = await newEntry.save();
 
-  console.log(savedEntry);
-
   res.status(200).json({
     status: 201,
     success: true,
@@ -115,6 +119,19 @@ app.post('/api/persons', async (req, res) => {
   });
 });
 
+app.use((req, res) => {
+  res.status(404).send({ error: 'Unknown endpoint.' });
+});
+
+app.use((err, req, res, next) => {
+  console.log(err.message);
+
+  if (err.name === 'CastError') {
+    res.status(504).send({ error: 'incorrect id format' });
+  }
+});
+
+// server initialization
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
