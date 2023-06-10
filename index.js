@@ -113,30 +113,30 @@ app.post('/api/persons', async (req, res) => {
     });
   }
 
-  // duplicate name handler
-  // updates the existing MongoDB document via a PATCH HTTP request to itself (same server)
-  if (nameAlreadyExists.length > 0) {
-    const response = await axios.put(
-      `http://127.0.0.1:${process.env.PORT || '3001'}/api/persons/${
-        nameAlreadyExists[0]._id
-      }`,
-      { name, number }
-    );
-    if (response.data.success === true) {
-      return res.status(200).json({
-        status: 200,
-        success: true,
-        message: response.data.message,
-        person: response.data.person,
-      });
-    } else {
-      return res.status(500).json({
-        status: 500,
-        success: false,
-        message: 'failed to update existing person due to a server error',
-      });
-    }
-  }
+  // // duplicate name handler
+  // // updates the existing MongoDB document via a PATCH HTTP request to itself (same server)
+  // if (nameAlreadyExists.length > 0) {
+  //   const response = await axios.put(
+  //     `http://127.0.0.1:${process.env.PORT || '3001'}/api/persons/${
+  //       nameAlreadyExists[0]._id
+  //     }`,
+  //     { name, number }
+  //   );
+  //   if (response.data.success === true) {
+  //     return res.status(200).json({
+  //       status: 200,
+  //       success: true,
+  //       message: response.data.message,
+  //       person: response.data.person,
+  //     });
+  //   } else {
+  //     return res.status(500).json({
+  //       status: 500,
+  //       success: false,
+  //       message: 'failed to update existing person due to a server error',
+  //     });
+  //   }
+  // }
 
   // otherwise, creates a new entry in the collection
   const newEntry = new Entry({ name, number });
