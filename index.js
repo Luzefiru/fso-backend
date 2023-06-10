@@ -60,7 +60,7 @@ app.get('/api/persons', async (req, res, next) => {
 app.get('/api/persons/:id', async (req, res, next) => {
   try {
     const idToSearch = req.params.id;
-    const personWithId = await Entry.find({ _id: idToSearch }).exec();
+    const personWithId = await Entry.findById(idToSearch);
 
     if (personWithId) {
       return res.json(personWithId);
