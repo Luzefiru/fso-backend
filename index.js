@@ -51,7 +51,7 @@ app.get('/info', async (req, res) => {
 app.get('/api/persons', async (req, res, next) => {
   try {
     const entries = await Entry.find({});
-    return res.json(entries);
+    res.json(entries);
   } catch (err) {
     next(err);
   }
@@ -94,9 +94,8 @@ app.delete('/api/persons/:id', async (req, res, next) => {
   }
 });
 
-app.post('/api/persons', async (req, res) => {
+app.post('/api/persons', async (req, res, next) => {
   const { name, number } = req.body;
-  const nameAlreadyExists = await Entry.find({ name });
 
   // validates whether the HTTP request body input meets constraints
   if (!name) {
@@ -113,41 +112,20 @@ app.post('/api/persons', async (req, res) => {
     });
   }
 
-  // // duplicate name handler
-  // // updates the existing MongoDB document via a PATCH HTTP request to itself (same server)
-  // if (nameAlreadyExists.length > 0) {
-  //   const response = await axios.put(
-  //     `http://127.0.0.1:${process.env.PORT || '3001'}/api/persons/${
-  //       nameAlreadyExists[0]._id
-  //     }`,
-  //     { name, number }
-  //   );
-  //   if (response.data.success === true) {
-  //     return res.status(200).json({
-  //       status: 200,
-  //       success: true,
-  //       message: response.data.message,
-  //       person: response.data.person,
-  //     });
-  //   } else {
-  //     return res.status(500).json({
-  //       status: 500,
-  //       success: false,
-  //       message: 'failed to update existing person due to a server error',
-  //     });
-  //   }
-  // }
+  try {
+    // otherwise, creates a new entry in the collection
+    const newEntry = new Entry({ name, number });
+    const savedEntry = await newEntry.save();
 
-  // otherwise, creates a new entry in the collection
-  const newEntry = new Entry({ name, number });
-  const savedEntry = await newEntry.save();
-
-  res.status(201).json({
-    status: 201,
-    success: true,
-    message: `The person with id ${savedEntry._id} was successfully added to the Phonebook.`,
-    person: savedEntry,
-  });
+    res.status(201).json({
+      status: 201,
+      success: true,
+      message: `The person with id ${savedEntry._id} was successfully added to the Phonebook.`,
+      person: savedEntry,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.patch('/api/persons/:id', async (req, res, next) => {
@@ -158,17 +136,17 @@ app.patch('/api/persons/:id', async (req, res, next) => {
     const updatedEntry = await Entry.findByIdAndUpdate(
       idToUpdate,
       { name, number },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
-    return res.status(200).json({
+    res.status(200).json({
       status: 200,
       success: true,
       message: `The person with id ${updatedEntry._id} was successfully updated.`,
       person: updatedEntry,
     });
   } catch (err) {
-    return next(err);
+    next(err);
   }
 });
 
@@ -183,6 +161,8 @@ app.use((err, req, res, next) => {
 
   if (err.name === 'CastError') {
     res.status(504).send({ error: 'incorrect id format' });
+  } else if (err.name === 'ValidationError') {
+    res.status(400).send({ error: err.message });
   }
 });
 
