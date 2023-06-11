@@ -9,8 +9,12 @@ const getAll = async () => {
 
 // returns the created resource
 const createPerson = async (person) => {
-  const response = await axios.post(baseUrl, person);
-  return response.data;
+  try {
+    const response = await axios.post(baseUrl, person);
+    return response.data;
+  } catch (err) {
+    return err.response.data;
+  }
 };
 
 // returns the updated resource with the new fields

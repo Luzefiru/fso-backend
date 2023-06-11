@@ -35,10 +35,11 @@ const App = () => {
           })
           .then((updatedPerson) => {
             setPersons(
-              persons.filter((p) => p.name !== newName).concat(updatedPerson)
+              persons
+                .filter((p) => p.name !== newName)
+                .concat({ name: newName, number: newNumber })
             );
-            console.log(notification, newName);
-            setNotification(`Updated ${updatedPerson.name}`);
+            setNotification(`Updated ${newName}`);
             setTimeout(() => {
               setNotification(null);
             }, 5000);
@@ -66,13 +67,22 @@ const App = () => {
     personsService
       .createPerson({ name: newName, number: newNumber })
       .then((newPerson) => {
-        setPersons([...persons, newPerson]);
-        setNotification(`Added ${newName}`);
-        setTimeout(() => {
-          setNotification(null);
-        }, 5000);
-        setNewName('');
-        setNewNumber('');
+        if (!newPerson.error) {
+          setPersons([...persons, newPerson]);
+          setNotification(`Added ${newName}`);
+          setTimeout(() => {
+            setNotification(null);
+          }, 5000);
+          setNewName('');
+          setNewNumber('');
+        } else {
+          setNotificationColor('red');
+          setNotification(newPerson.error);
+          setTimeout(() => {
+            setNotification(null);
+            setNotificationColor('green');
+          }, 5000);
+        }
       });
   };
 
